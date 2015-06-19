@@ -28,14 +28,24 @@ usage(){
 
 reset_bbb_usb () {
 	echo "Attempting to reset Downstream BBB"
-	devmem2 0x47401c60 b 0x00
+	if [ ! -d /sys/class/leds/usb_hub_power ] ; then
+		devmem2 0x47401c60 b 0x00
+	else
+		echo 0 > /sys/class/leds/usb_hub_power/brightness
+	fi
+
 	sleep 1
 	echo "usb1" > /sys/bus/usb/drivers/usb/unbind
 	sleep 20
 
 	echo "usb1" > /sys/bus/usb/drivers/usb/bind
 	sleep 1
-	devmem2 0x47401c60 b 0x01
+
+	if [ ! -d /sys/class/leds/usb_hub_power ] ; then
+		devmem2 0x47401c60 b 0x01
+	else
+		echo 255 > /sys/class/leds/usb_hub_power/brightness
+	fi
 	sleep 2
 }
 
@@ -83,9 +93,11 @@ echo "Please do not insert any USB Sticks"\
 		"or mount external hdd during the procedure."
 echo 
 
-if [ ! -f /usr/bin/devmem2 ] ; then
-	wget --directory-prefix=/tmp/ http://ports.ubuntu.com/pool/universe/d/devmem2/devmem2_0.0-0ubuntu1_armhf.deb
-	dpkg -i /tmp/devmem2_0.0-0ubuntu1_armhf.deb
+if [ ! -d /sys/class/leds/usb_hub_power ] ; then
+	if [ ! -f /usr/bin/devmem2 ] ; then
+		wget --directory-prefix=/tmp/ http://ports.ubuntu.com/pool/universe/d/devmem2/devmem2_0.0-0ubuntu1_armhf.deb
+		dpkg -i /tmp/devmem2_0.0-0ubuntu1_armhf.deb
+	fi
 fi
 
 #read -p "When the BeagleBone Black is connected in USB Boot mode press [yY]." -n 1 -r
