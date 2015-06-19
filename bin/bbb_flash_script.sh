@@ -1,4 +1,6 @@
-#!/bin/bash
+#!/bin/bash -x
+
+arch=$(uname -m)
 
 diff(){
 	awk 'BEGIN{RS=ORS=" "}
@@ -21,36 +23,39 @@ is_online(){
 }
 
 usage(){
-	echo "Usage: $0 [ debian | ubuntu | input.img.xz ]"
+	echo "Usage: $0 [ builds | debian | ubuntu | input.img.xz ]"
 	echo "Supported images are just in .img.xz format."
 	exit 1
 }
 
 reset_bbb_usb () {
-	echo "Attempting to reset Downstream BBB"
-	if [ ! -d /sys/class/leds/usb_hub_power ] ; then
-		devmem2 0x47401c60 b 0x00
-	else
-		echo 0 > /sys/class/leds/usb_hub_power/brightness
+	if [ "x${arch}" = "xarmv7l" ] ; then
+		echo "Attempting to reset Downstream BBB"
+		if [ ! -d /sys/class/leds/usb_hub_power ] ; then
+			devmem2 0x47401c60 b 0x00
+		else
+			echo 0 > /sys/class/leds/usb_hub_power/brightness
+		fi
+
+		sleep 1
+		echo "usb1" > /sys/bus/usb/drivers/usb/unbind
+		sleep 20
+
+		echo "usb1" > /sys/bus/usb/drivers/usb/bind
+		sleep 1
+
+		if [ ! -d /sys/class/leds/usb_hub_power ] ; then
+			devmem2 0x47401c60 b 0x01
+		else
+			echo 255 > /sys/class/leds/usb_hub_power/brightness
+		fi
+		sleep 2
 	fi
-
-	sleep 1
-	echo "usb1" > /sys/bus/usb/drivers/usb/unbind
-	sleep 20
-
-	echo "usb1" > /sys/bus/usb/drivers/usb/bind
-	sleep 1
-
-	if [ ! -d /sys/class/leds/usb_hub_power ] ; then
-		devmem2 0x47401c60 b 0x01
-	else
-		echo 255 > /sys/class/leds/usb_hub_power/brightness
-	fi
-	sleep 2
 }
 
 echo
 input=$1
+build=$2
 
 if [[ $# -eq 0 ]]
 then
@@ -76,7 +81,7 @@ else
 	input=$1
 fi
 
-if [ ! \( "$input" = "debian" -o "$input" = "ubuntu" \) ]
+if [ ! \( "$input" = "builds" -o "$input" = "debian" -o "$input" = "ubuntu" \) ]
 then
 
 	if ( ! is_file_exists "$input" )
@@ -93,10 +98,12 @@ echo "Please do not insert any USB Sticks"\
 		"or mount external hdd during the procedure."
 echo 
 
-if [ ! -d /sys/class/leds/usb_hub_power ] ; then
-	if [ ! -f /usr/bin/devmem2 ] ; then
-		wget --directory-prefix=/tmp/ http://ports.ubuntu.com/pool/universe/d/devmem2/devmem2_0.0-0ubuntu1_armhf.deb
-		dpkg -i /tmp/devmem2_0.0-0ubuntu1_armhf.deb
+if [ "x${arch}" = "xarmv7l" ] ; then
+	if [ ! -d /sys/class/leds/usb_hub_power ] ; then
+		if [ ! -f /usr/bin/devmem2 ] ; then
+			wget --directory-prefix=/tmp/ http://ports.ubuntu.com/pool/universe/d/devmem2/devmem2_0.0-0ubuntu1_armhf.deb
+			dpkg -i /tmp/devmem2_0.0-0ubuntu1_armhf.deb
+		fi
 	fi
 fi
 
@@ -171,11 +178,24 @@ fi
 #			sudo ./bbb-armhf.sh $bbb $input
 #		else
 
-			#if [ -f /usr/bin/bmaptool ] ; then
-			#	bmaptool copy --bmap /tmp/image.bmap $input /dev/$bbb
-			#else
+			if [ \( "$input" = "builds" \) ]
+			then
+				if [ -f /tmp/${build}.html ] ; then
+					rm -f /tmp/${build}.html || true
+				fi
+				wget --directory-prefix=/tmp/ http://builds.beagleboard.org/images/${build}.html
+				url=$(cat /tmp/${build}.html | awk -F 'url=' '{print $2}' | awk -F '"' '{print $1}')
+				if [ -f /tmp/index.html ] ; then
+					rm -f /tmp/index.html || true
+				fi
+				wget --directory-prefix=/tmp/ ${url}
+				image_base=$(cat /tmp/index.html | grep bmap | awk -F 'href="' '{print $2}' | awk -F '"' '{print $1}' | awk -F '.bmap' '{print $1}')
+				wget --directory-prefix=/tmp/ ${url}${image_base}.bmap
+
+				bmaptool copy --bmap /tmp/${image_base}.bmap ${url}${image_base}.img.xz /dev/$bbb
+			else
 				xzcat $input | sudo dd of=/dev/$bbb bs=1M
-			#fi
+			fi
 
 sync
 reset_bbb_usb
