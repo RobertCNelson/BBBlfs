@@ -172,7 +172,6 @@ fi
 #		else
 
 			#if [ -f /usr/bin/bmaptool ] ; then
-			#	bmaptool create -o /tmp/image.bmap $input
 			#	bmaptool copy --bmap /tmp/image.bmap $input /dev/$bbb
 			#else
 				xzcat $input | sudo dd of=/dev/$bbb bs=1M
