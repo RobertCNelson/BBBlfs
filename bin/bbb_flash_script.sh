@@ -190,9 +190,8 @@ fi
 				fi
 				wget --directory-prefix=/tmp/ ${url}
 				image_base=$(cat /tmp/index.html | grep bmap | awk -F 'href="' '{print $2}' | awk -F '"' '{print $1}' | awk -F '.bmap' '{print $1}')
-				wget --directory-prefix=/tmp/ ${url}${image_base}.bmap
 
-				bmaptool copy --bmap /tmp/${image_base}.bmap ${url}${image_base}.img.xz /dev/$bbb
+				bmaptool copy --bmap ${url}${image_base}.bmap ${url}${image_base}.img.xz /dev/$bbb
 			else
 				xzcat $input | sudo dd of=/dev/$bbb bs=1M
 			fi
